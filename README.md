@@ -11,7 +11,10 @@ DeepSeek Harness 的 SQLite 数据工具插件 —— 列出工作区内的数�
 | `sqlite_list` | 扫描工作区（2 层内，跳过 node_modules 与隐藏目录）找出所有 `.db/.sqlite/.sqlite3/.db3` 文件 |
 | `sqlite_tables` | 列出某库内所有表与视图 |
 | `sqlite_schema` | 查看某表的列结构（类型 / NOT NULL / 默认值 / 主键） |
+| `sqlite_summary` | 单表列统计摘要（总行数 + 每列类型/distinct/min/max/avg）——**省 token**：不用 SELECT * 全表即可了解数据分布 |
 | `sqlite_query` | 执行只读 SQL，返回 `{ columns, rows }` JSON |
+
+> **省 token 工作流**：面对一张大表时，先 `sqlite_summary` 看分布 → 再 `sqlite_schema` 看类型 → 最后用 `sqlite_query` 精准取数。三步替代"SELECT * 全表拉进上下文"。
 
 ## 安全模型
 
