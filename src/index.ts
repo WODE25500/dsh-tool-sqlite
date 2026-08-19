@@ -18,6 +18,7 @@ import {
   queryRows,
   resolveDbPath,
   tableSchema,
+  tableSummary,
   type ColumnInfo,
 } from './sqlite-core.js'
 
@@ -163,6 +164,38 @@ export function apply(ctx: Context): void {
         )
         const head = JSON.stringify({ columns, rows })
         return truncated ? head + `\n(结果超过上限，已截断为 ${rows.length} 行)` : head
+      },
+      timeoutMs: 5000,
+    }),
+  )
+
+  ctx.tools.register(
+    defineTool({
+      name: 'sqlite_summary',
+      description:
+        'Column-wise statistics summary of one table (read-only): total rows + per-column type, ' +
+        'non-null count, distinct count, and min/max/avg for numeric columns. ' +
+        'Use instead of SELECT * to understand a table before querying — saves tokens.',
+      parameters: {
+        db: {
+          type: 'string',
+          required: true,
+          description: 'Path to the .db/.sqlite file, relative to the workspace.',
+        },
+        table: {
+          type: 'string',
+          required: true,
+          description: 'Table name.',
+        },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      execute: async (args, exec) => {
+        const ws = workspaceOf(exec)
+        const abs = resolveDbPath(ws, args.db)
+        return JSON.stringify(tableSummary(abs, args.table))
       },
       timeoutMs: 5000,
     }),
