@@ -10,6 +10,7 @@ import {
   queryRows,
   resolveDbPath,
   tableSchema,
+  tableSummary,
 } from '../src/sqlite-core.ts'
 
 let dir: string
@@ -85,6 +86,29 @@ describe('tableSchema', () => {
   })
   it('errors on missing table', () => {
     expect(() => tableSchema(dbPath, 'nope')).toThrow(/表不存在/)
+  })
+})
+
+describe('tableSummary', () => {
+  it('returns row count and per-column stats', () => {
+    const s = tableSummary(dbPath, 'users')
+    expect(s.rowCount).toBe(3)
+    const age = s.columns.find((c) => c.name === 'age')!
+    expect(age.min).toBe(25)
+    expect(age.max).toBe(35)
+    expect(age.avg).toBe(30)
+    expect(age.distinct).toBe(3)
+    const name = s.columns.find((c) => c.name === 'name')!
+    expect(name.distinct).toBe(3)
+    expect(name.nonNull).toBe(3)
+  })
+  it('handles empty-ish tables gracefully', () => {
+    const db2 = new DatabaseSync(join(dir, 'empty.db'))
+    db2.exec('CREATE TABLE t (x INTEGER)')
+    db2.close()
+    const s = tableSummary(join(dir, 'empty.db'), 't')
+    expect(s.rowCount).toBe(0)
+    expect(s.columns[0]!.min).toBeNull()
   })
 })
 
