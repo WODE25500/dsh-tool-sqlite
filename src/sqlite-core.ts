@@ -174,3 +174,54 @@ export function queryRows(
 function quoteIdent(name: string): string {
   return '"' + String(name).replaceAll('"', '""') + '"'
 }
+
+export interface ColumnSummary {
+  name: string
+  type: string
+  nonNull: number
+  distinct: number
+  min: string | number | null
+  max: string | number | null
+  avg: number | null
+}
+
+export interface TableSummary {
+  rowCount: number
+  columns: ColumnSummary[]
+}
+
+/** 单表列统计摘要（省 token：模型不用 SELECT 全表就知道数据分布）。 */
+export function tableSummary(absPath: string, table: string): TableSummary {
+  const db = openDb(absPath)
+  try {
+    const t = quoteIdent(table)
+    const count = (db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get() as { n: number }).n
+    const cols = tableSchema(absPath, table)
+    const columns = cols.map((c) => {
+      const q = quoteIdent(c.name)
+      // 数值列做 min/max/avg；所有列做 distinct 与空值计数（抽样 10000 行内）
+      const isNumeric = ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE', 'DECIMAL'].includes(
+        (c.type || '').toUpperCase(),
+      )
+      const row = db
+        .prepare(
+          `SELECT COUNT(${q}) AS nonNull, COUNT(DISTINCT ${q}) AS cntDistinct ` +
+            `${isNumeric ? `, MIN(${q}) AS mn, MAX(${q}) AS mx, AVG(${q}) AS av` : ''} ` +
+            `FROM (SELECT * FROM ${t} LIMIT 10000)`,
+        )
+        .get() as { nonNull: number; cntDistinct: number; mn?: number | null; mx?: number | null; av?: number | null }
+      return {
+        name: c.name,
+        type: c.type || '?',
+        nonNull: row.nonNull,
+        distinct: row.cntDistinct,
+        min: isNumeric ? (row.mn ?? null) : null,
+        max: isNumeric ? (row.mx ?? null) : null,
+        avg: isNumeric && row.av !== undefined ? Math.round((row.av ?? 0) * 100) / 100 : null,
+      } satisfies ColumnSummary
+    })
+    return { rowCount: count, columns }
+  } finally {
+    db.close()
+  }
+}
